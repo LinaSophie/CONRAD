@@ -6,6 +6,7 @@ package edu.stanford.rsl.conrad.data.numeric;
 
 import edu.stanford.rsl.conrad.data.numeric.opencl.OpenCLGridInterface;
 import edu.stanford.rsl.conrad.data.numeric.opencl.OpenCLGridOperators;
+import edu.stanford.rsl.tutorial.Lina.Phantom;
 
 
 /** The collection of all operators working point-wise on NumericGrid data. */
@@ -81,9 +82,9 @@ public abstract class NumericPointwiseOperators {
 	}
 	
 	/** Compute grid1 = grid1 - grid2  */
-	public static void addBy(NumericGrid input, NumericGrid sub) {
-		NumericGridOperator op = selectGridOperator(input, sub);
-		op.addBy(input, sub);
+	public static void addBy(NumericGrid input, Phantom phantom2) {
+		NumericGridOperator op = selectGridOperator(input, phantom2);
+		op.addBy(input, phantom2);
 	}
 	
 	
