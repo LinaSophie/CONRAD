@@ -7,7 +7,7 @@ import edu.stanford.rsl.conrad.data.numeric.NumericPointwiseOperators;
 
 public class Phantom extends Grid2D{
 
-	public Phantom(int width, int height) {
+	public Phantom(int width, int height, double spacingX, double spacingY) {
 		super(width, height);
 		
 		//this.setAtIndex(5, 200, (float) 0.7);
@@ -25,6 +25,9 @@ public class Phantom extends Grid2D{
 			this.createCircle((int) (3*width/4), (int) (height/4), (int) (3*width/16), (float) 0.3);
 			this.createRectangle((int) (width/2), (int) (height/2), (int) (height/8),(int) (width/4), (float) 0.8);
 		}
+		
+		this.setSpacing(spacingX, spacingY);
+		this.setOrigin((width*spacingX)/2,(height*spacingY)/2);
 		
 	}
 	
@@ -75,10 +78,10 @@ public class Phantom extends Grid2D{
 		new ImageJ();
 		//create Phantom
 
-		Phantom phantom = new Phantom(250,300); 
+		Phantom phantom = new Phantom(250,300,1.0,1.0); 
 		phantom.show("phantom1");
 		
-		Phantom phantom2 = new Phantom(300,200); 
+		Phantom phantom2 = new Phantom(300,200, 0.5, 0.5); 
 		phantom2.show("phantom2");
 		
 //		NumericGrid phantom3 = NumericPointwiseOperators.addedBy(phantom, phantom2);
@@ -94,7 +97,7 @@ public class Phantom extends Grid2D{
 		NumericGrid addedPhantom = NumericPointwiseOperators.addedBy(phantom, image);
 		addedPhantom.show("AddedBy1");
 		
-		NumericGrid addedImage = NumericPointwiseOperators.addedBy( image, phantom);
+		NumericGrid addedImage = NumericPointwiseOperators.addedBy(image, phantom);
 		addedImage.show("AddedBy2");
 	}
 }
