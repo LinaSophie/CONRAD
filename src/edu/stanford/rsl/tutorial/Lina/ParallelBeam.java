@@ -21,9 +21,12 @@ public class ParallelBeam {
 			System.err.println("invalid number of Projections.");
 			return new Grid2D(1, 1);
 		}
-		Grid2D sino = new Grid2D(nrDetPixels, nrProj);
-		//set sampling rate //TODO
-		final double samplingStep = 3.0; //[mm]
+		Grid2D sino = new Grid2D(nrProj, nrDetPixels);
+		sino.setSpacing(detSpacing, detSpacing);
+		sino.setOrigin(-(nrProj*detSpacing)/2, -(nrDetPixels*detSpacing)/2);
+		
+		//set sampling rate 
+		final double samplingStep = 0.5; //[mm]
 		
 		Box b = new Box((input.getSize()[0] * input.getSpacing()[0]), (input.getSize()[1] * input.getSpacing()[1]),
 				0.0);
@@ -37,7 +40,7 @@ public class ParallelBeam {
 		double theta = 0;
 		double angle = 0;
 		if (nrProj != 1) {
-			angle = 180 / (nrProj - 1);
+			angle = 180 / (nrProj - 1) *2*Math.PI / 360; // radians
 		}
 
 		// for all Projections
@@ -87,14 +90,14 @@ public class ParallelBeam {
 				SimpleVector direction = line.getDirection().multipliedBy(samplingStep);
 				
 				PointND currentPoint = new PointND(start);
-				currentPoint.getAbstractVector().subtract(direction); //so that stert is the first point ;)
+				currentPoint.getAbstractVector().subtract(direction); //so that start is the first point ;)
 				
 				float value= 0.0f;
 				// all points for interpolation and integeration, sampling points on the line
 				for(int k = 0; k<= samplingRate; k++){
 					currentPoint.getAbstractVector().add(direction);;
 //					System.out.println(currentPoint);
-					//double[] pixels = input.physicalToIndex(currentPoint.get(0), currentPoint.get(1)); funktioniert nicht, da bild noch mal verschoben wird :(
+					//double[] pixels = input.physicalToIndex(currentPoint.get(0), currentPoint.get(1)); 
 					double x = (currentPoint.get(0)/ input.getSpacing()[0]);
 					double y = (currentPoint.get(1)/ input.getSpacing()[1]);
 					float tmp = InterpolationOperators.interpolateLinear(input, x+input.getOrigin()[0], y+input.getOrigin()[1]); 
@@ -109,8 +112,48 @@ public class ParallelBeam {
 
 			theta = +angle;
 		}
-
+		
 		return sino;
+	}
+	
+	public static Grid2D backProjection(Grid2D sino ){
+		int width = sino.getWidth();
+		int height = sino.getHeight();
+		
+		Grid2D image = new Grid2D(width, width);
+		image.setSpacing(sino.getSpacing()[1], sino.getSpacing()[1]);
+		image.setOrigin(-(width*sino.getSpacing()[1])/2, -(width*sino.getSpacing()[1])/2);
+		
+		for(int t=0; t< height; t++){ 
+			double theta = t* (180/height) *2*Math.PI / 360;
+			double cosTheta = Math.cos(theta);
+			double sinTheta = Math.sin(theta);
+			
+			// go over pixels in image
+			for(int j=0; j<image.getHeight(); j++){
+				for( int i=0 ; i< image.getWidth(); i++){
+					
+					//pixels to world coordinates
+					double[] physIndex = image.indexToPhysical(j, i);
+					//calculate s and interpolate
+					double s = physIndex[1]*cosTheta + physIndex[0]*sinTheta;
+					double[] sinoIndex = sino.physicalToIndex(t,s);
+					
+					float value = InterpolationOperators.interpolateLinear(sino, t, sinoIndex[1]);
+					float pixelValue = image.getAtIndex(j, i) + value;
+					image.setAtIndex(j, i, pixelValue);
+				}
+			}
+			
+		}
+		
+		return image;
+	}
+	
+	public static Grid2D filteredBackProjection(String filter){
+		
+		
+		return null;
 	}
 
 	public static void main(String[] args) {
@@ -122,12 +165,15 @@ public class ParallelBeam {
 		SheppLogan logan = new SheppLogan(256);
 		logan.show();
 		
-		ParallelProjector2D proj = new ParallelProjector2D(180, 1, 400, 1);
-		Grid2D grid = proj.projectRayDriven(logan);
-		grid.show("logan");
+//		ParallelProjector2D proj = new ParallelProjector2D(180, 1, 400, 1);
+//		Grid2D grid = proj.projectRayDriven(logan);
+//		grid.show("logan");
 		
-		Grid2D sinogram = sinogram(logan, 180, 1.0, 400);
+		Grid2D sinogram = sinogram(phan, 180, 1.0, 400);
 		sinogram.show("mein sino");
+		
+		Grid2D back = backProjection(sinogram);
+		back.show("backprojection");
 		
 	}
 
