@@ -3,6 +3,7 @@ package edu.stanford.rsl.tutorial.Lina;
 
 import java.util.ArrayList;
 
+import edu.stanford.rsl.conrad.data.numeric.Grid1DComplex;
 import edu.stanford.rsl.conrad.data.numeric.Grid2D;
 import edu.stanford.rsl.conrad.data.numeric.InterpolationOperators;
 import edu.stanford.rsl.conrad.geometry.shapes.simple.Box;
@@ -21,9 +22,9 @@ public class ParallelBeam {
 			System.err.println("invalid number of Projections.");
 			return new Grid2D(1, 1);
 		}
-		Grid2D sino = new Grid2D(nrProj, nrDetPixels);
+		Grid2D sino = new Grid2D(nrDetPixels, nrProj);
 		sino.setSpacing(detSpacing, detSpacing);
-		sino.setOrigin(-(nrProj*detSpacing)/2, -(nrDetPixels*detSpacing)/2);
+		sino.setOrigin(-(nrDetPixels*detSpacing)/2, -(nrProj*detSpacing)/2);
 		
 		//set sampling rate 
 		final double samplingStep = 0.5; //[mm]
@@ -98,9 +99,9 @@ public class ParallelBeam {
 					currentPoint.getAbstractVector().add(direction);;
 //					System.out.println(currentPoint);
 					//double[] pixels = input.physicalToIndex(currentPoint.get(0), currentPoint.get(1)); 
-					double x = (currentPoint.get(0)/ input.getSpacing()[0]);
-					double y = (currentPoint.get(1)/ input.getSpacing()[1]);
-					float tmp = InterpolationOperators.interpolateLinear(input, x+input.getOrigin()[0], y+input.getOrigin()[1]); 
+					double dim1 = (currentPoint.get(0)/ input.getSpacing()[0]);
+					double dim2 = (currentPoint.get(1)/ input.getSpacing()[1]);
+					float tmp = InterpolationOperators.interpolateLinear(input, dim1 - input.getOrigin()[0], dim2 - input.getOrigin()[1]); 
 					value += tmp;
 					
 				}
@@ -117,31 +118,32 @@ public class ParallelBeam {
 	}
 	
 	public static Grid2D backProjection(Grid2D sino ){
-		int width = sino.getWidth();
-		int height = sino.getHeight();
 		
-		Grid2D image = new Grid2D(width, width);
-		image.setSpacing(sino.getSpacing()[1], sino.getSpacing()[1]);
-		image.setOrigin(-(width*sino.getSpacing()[1])/2, -(width*sino.getSpacing()[1])/2);
+		int dimension1 = sino.getHeight();
+		int dimension2 = sino.getWidth();
 		
-		for(int t=0; t< height; t++){ 
-			double theta = t* (180/height) *2*Math.PI / 360;
+		Grid2D image = new Grid2D(dimension2, dimension2);
+		image.setSpacing(sino.getSpacing()[0], sino.getSpacing()[0]);
+		image.setOrigin(-(dimension2*sino.getSpacing()[0])/2, -(dimension2*sino.getSpacing()[0])/2);
+		
+		for(int t=0; t< dimension1; t++){ 
+			double theta = t* (180/dimension1) *2*Math.PI / 360;
 			double cosTheta = Math.cos(theta);
 			double sinTheta = Math.sin(theta);
 			
 			// go over pixels in image
-			for(int j=0; j<image.getHeight(); j++){
-				for( int i=0 ; i< image.getWidth(); i++){
+			for(int i=0; i<image.getHeight(); i++){
+				for( int j=0 ; j< image.getWidth(); j++){
 					
 					//pixels to world coordinates
-					double[] physIndex = image.indexToPhysical(j, i);
+					double[] physIndex = image.indexToPhysical(i, j);
 					//calculate s and interpolate
-					double s = physIndex[1]*cosTheta + physIndex[0]*sinTheta;
-					double[] sinoIndex = sino.physicalToIndex(t,s);
+					double s = physIndex[0]*cosTheta + physIndex[1]*sinTheta;
+					double[] sinoIndex = sino.physicalToIndex(s, t);
 					
-					float value = InterpolationOperators.interpolateLinear(sino, t, sinoIndex[1]);
-					float pixelValue = image.getAtIndex(j, i) + value;
-					image.setAtIndex(j, i, pixelValue);
+					float value = InterpolationOperators.interpolateLinear(sino, sinoIndex[0], t);
+					float pixelValue = image.getAtIndex(i, j) + value;
+					image.setAtIndex(i, j, pixelValue);
 				}
 			}
 			
@@ -150,10 +152,59 @@ public class ParallelBeam {
 		return image;
 	}
 	
-	public static Grid2D filteredBackProjection(String filter){
+	public static Grid2D rampFilter(Grid2D sino){
+		Grid2D filteredSino = new Grid2D(sino.getSize()[0], sino.getSize()[1]);
+		filteredSino.setSpacing(sino.getSpacing()[0], sino.getSpacing()[1]);
+		filteredSino.setOrigin(sino.getOrigin()[0], sino.getOrigin()[1]);
 		
+		//ramp filter
+		Grid1DComplex ramp = new Grid1DComplex(sino.getSize()[0]);
+		double deltaF = 1/(sino.getSpacing()[0]*ramp.getSize()[0]);
+		for(int i=0; i < sino.getSize()[0]; i++){
+			ramp.setAtIndex(i, (float) Math.abs(2.0f* Math.PI * i * deltaF ));
+		}
 		
-		return null;
+		//convoltution for each row
+		for(int i=0; i < sino.getSize()[1]; i++){
+			Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
+			complexLine.transformForward();
+			
+			//multiply with ramp filter
+			for(int j = 0; j< complexLine.getSize()[0]; j++){
+				complexLine.multiplyAtIndex(j, ramp.getAtIndex(j));
+			}
+			
+			complexLine.transformInverse();
+			for(int j = 0; j< complexLine.getSize()[0]; j++){
+				filteredSino.setAtIndex(j,i, complexLine.getAtIndex(j));
+			}
+		}
+		return filteredSino;
+	}
+	
+	public static Grid2D filteredBackProjection(String filter, Grid2D sino){
+		Grid2D fbp = new Grid2D(sino.getSize()[0], sino.getSize()[1]);
+		fbp.setSpacing(sino.getSpacing()[0], sino.getSpacing()[1]);
+		fbp.setOrigin(sino.getOrigin()[0], sino.getOrigin()[1]);
+		
+		//filtering
+		switch(filter){
+			case "ramp":
+				System.out.println("ramp filter");
+				fbp = rampFilter(sino);
+				break;
+			case "ramLak":
+				System.out.println("ramLak filter");
+				break;
+			default:
+				System.err.println("this filter: ' " + filter + " ' does not exists.");
+				break;
+		}
+		
+		//backprojection
+		fbp = backProjection(fbp);
+		
+		return fbp;
 	}
 
 	public static void main(String[] args) {
@@ -162,19 +213,24 @@ public class ParallelBeam {
 		Phantom phan = new Phantom(200, 300, 1.0, 1.0);
 		phan.show();
 		
-		SheppLogan logan = new SheppLogan(256);
-		logan.show();
+//		SheppLogan logan = new SheppLogan(256);
+//		logan.show();
 		
 //		ParallelProjector2D proj = new ParallelProjector2D(180, 1, 400, 1);
 //		Grid2D grid = proj.projectRayDriven(logan);
 //		grid.show("logan");
 		
 		Grid2D sinogram = sinogram(phan, 180, 1.0, 400);
+		//sinogram = backProjection(sinogram);
 		sinogram.show("mein sino");
+		
+		Grid2D filt = rampFilter(sinogram);
+		filt.show("filtered sino");
 		
 		Grid2D back = backProjection(sinogram);
 		back.show("backprojection");
 		
+		Grid2D fbp = filteredBackProjection("ramp", sinogram);
+		fbp.show("fbp");
 	}
-
 }
