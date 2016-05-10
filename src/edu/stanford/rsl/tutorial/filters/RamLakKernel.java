@@ -28,6 +28,7 @@ public class RamLakKernel extends Grid1DComplex implements GridKernel {
 			if (1 == (tmp % 2))
 				setAtIndex(i, odd / (tmp * tmp));
 		}
+		this.show("RamLak");
 		transformForward();
 	}
 
@@ -49,6 +50,7 @@ public class RamLakKernel extends Grid1DComplex implements GridKernel {
 
 	public final static void main(String[] args) {
 		RamLakKernel r = new RamLakKernel(320, 2);
+		r.show("ram");
 		VisualizationUtil.createPlot(r.getSubGrid(0, 512).getBuffer()).show();
 	}
 
