@@ -193,42 +193,44 @@ public class ParallelBeam {
 		filteredSino.setOrigin(sino.getOrigin()[0], sino.getOrigin()[1]);
 		
 		//ramLak filter
-				Grid1D ramLak = new Grid1D(sino.getSize()[0]);
-				double deltaF = 1/(sino.getSpacing()[0]*ramLak.getSize()[0]);
-				for(int i=0; i < ramLak.getSize()[0]/2; i++){
-					if(i == 0){ //n=0
-						ramLak.setAtIndex(i, 1/4);
-					}else if(i%2 != 0){ // n even
-						ramLak.setAtIndex(i, 0);
-						//ramLak.setAtIndex(ramLak.getSize()[0]-1-i, 0);
-					}else{ //n odd
-						ramLak.setAtIndex(i, (float)(-1/(Math.pow(Math.PI, 2)*Math.pow(i, 2))));
-						//ramLak.setAtIndex(ramLak.getSize()[0]-1-i, (float)(-1/(Math.pow(Math.PI, 2)*Math.pow(i, 2))));
-					}
-					/*ramp.setAtIndex(i, (float)(Math.abs(2.0f* Math.PI * i * deltaF )));
-					ramp.setAtIndex(ramp.getSize()[0]-1-i, (float)(Math.abs(2.0f* Math.PI * i * deltaF )));*/
-				}
-				ramLak.show();
-				Grid1DComplex ramLakComplex = new Grid1DComplex(ramLak);
-				ramLakComplex.transformForward();
-				ramLakComplex.show("ramLakComp");
-				
-				
-				//convolution for each row
-				for(int i=0; i < sino.getSize()[1]; i++){
-					Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
-					complexLine.transformForward();
-					
-					//multiply with ramp filter
-					for(int j = 0; j< complexLine.getSize()[0]; j++){
-						complexLine.multiplyAtIndex(j, ramLakComplex.getRealAtIndex(j), ramLakComplex.getImagAtIndex(j));
-					}
-					
-					complexLine.transformInverse();
-					for(int j = 0; j< complexLine.getSize()[0]; j++){
-						filteredSino.setAtIndex(j,i, complexLine.getRealAtIndex(j));
-					}
-				}		
+		Grid1D ramLak = new Grid1D(sino.getSize()[0]); //FFTUtil.getNextPowerOfTwo(sino.getSize()[0])
+		Grid1DComplex ramLakComplex = new Grid1DComplex(ramLak);
+
+		for (int i = 0; i < ramLakComplex.getSize()[0]/2; i++) {
+			if (i == 0) { // n=0
+				// System.out.println(ramLak.getAtIndex(i));
+				ramLakComplex.setAtIndex(i, 0.25f);
+			} else if (i % 2 == 0) { // n even
+				ramLakComplex.setAtIndex(i, 0);
+				ramLakComplex.setAtIndex(ramLakComplex.getSize()[0] - i, 0);
+			} else { // n odd
+				ramLakComplex.setAtIndex(i,
+						(float) (-1 / (Math.pow(Math.PI, 2) * Math.pow(i, 2))));
+				ramLakComplex.setAtIndex(ramLakComplex.getSize()[0] - i,
+						(float) (-1 / (Math.pow(Math.PI, 2) * Math.pow(i, 2))));
+			}
+		}
+		
+		ramLakComplex.show("ramLakComp");
+		ramLakComplex.transformForward();
+		ramLakComplex.show("ramLakComp FFT");
+
+		// convolution for each row
+		for (int i = 0; i < sino.getSize()[1]; i++) {
+			Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
+			complexLine.transformForward();
+
+			// multiply with ramp filter
+			for (int j = 0; j < complexLine.getSize()[0]; j++) {
+				complexLine.multiplyAtIndex(j, ramLakComplex.getRealAtIndex(j),
+						ramLakComplex.getImagAtIndex(j));
+			}
+
+			complexLine.transformInverse();
+			for (int j = 0; j < complexLine.getSize()[0]; j++) {
+				filteredSino.setAtIndex(j, i, complexLine.getRealAtIndex(j));
+			}
+		}
 		return filteredSino;
 	}
 	
@@ -277,14 +279,14 @@ public class ParallelBeam {
 		//sinogram = backProjection(sinogram);
 		sinogram.show("mein sino");
 		
-		Grid2D filt = rampFilter(sinogram);
+/*		Grid2D filt = rampFilter(sinogram);
 		filt.show("filtered sino");
 		
 		Grid2D back = backProjection(sinogram);
 		back.show("backprojection");
 		
 		Grid2D fbp = filteredBackProjection("ramp", sinogram);
-		fbp.show("fbp ramp");
+		fbp.show("fbp ramp");*/
 		
 		Grid2D fbpLak = filteredBackProjection("ramLak", sinogram);
 		fbpLak.show("fbp ramLahk");

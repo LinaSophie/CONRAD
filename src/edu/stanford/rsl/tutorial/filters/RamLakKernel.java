@@ -30,6 +30,7 @@ public class RamLakKernel extends Grid1DComplex implements GridKernel {
 		}
 		this.show("RamLak");
 		transformForward();
+		
 	}
 
 	public void applyToGrid(Grid1D input) {
