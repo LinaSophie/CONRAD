@@ -40,7 +40,7 @@ public class ParallelBeam {
 		b.setUpperCorner(q);
 		b.setLowerCorner(p);
 
-		double theta = 0;
+		//double theta = 0;
 		double angle = 0;
 		if (nrProj != 1) {
 			angle = 180 / (nrProj - 1) *2*Math.PI / 360; // radians
@@ -49,8 +49,10 @@ public class ParallelBeam {
 		// for all Projections
 		for (int i = 0; i < nrProj; i++) {
 
-			double cosTheta = Math.cos(i * theta);
-			double sinTheta = Math.sin(i * theta);
+			//double cosTheta = Math.cos(i * theta);
+			//double sinTheta = Math.sin(i * theta);
+			double cosTheta = Math.cos(i * angle);
+			double sinTheta = Math.sin(i * angle);
 
 			//for all Rays
 			for (int j = 0; j < nrDetPixels; j++) {
@@ -112,7 +114,7 @@ public class ParallelBeam {
 				sino.setAtIndex(j, i, value); //nrProjections, nrDetPixels, value
 				
 			}
-			theta = +angle;
+			//theta = +angle;
 		}
 		return sino;
 	}
