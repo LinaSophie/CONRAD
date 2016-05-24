@@ -48,23 +48,29 @@ public class FanBeam {
 			double beta = (i*rotAngle) *2*Math.PI / 360; // radians
 			double sinBeta = Math.sin(beta);
 			double cosBeta = Math.cos(beta);
+			//System.out.println();
+			//System.out.println(i*rotAngle + " " +beta);
 				
 			//for all Rays
-			for (int j = 0; j < nrDetElements; j++) {
+			for (int j =0; j < nrDetElements; j++) {
 				
 				double t = (detSpacing * j) - (detSpacing * nrDetElements) / 2;
 				
-				PointND p1 = new PointND(dSI * cosBeta, dSI * sinBeta , 0.0); //quelle
-				PointND p2tmp =  new PointND(-(dSD -dSI) * cosBeta, -(dSD -dSI) * sinBeta , 0.0); //senkrect auf detector
-				PointND p2 = new PointND(p2tmp.getCoordinates()[0] + t * sinBeta, p2tmp.getCoordinates()[1] - t * cosBeta, 0.0);// t
+				PointND p1 = new PointND( -dSI * sinBeta ,dSI * cosBeta, 0.0); //quelle
+				//System.out.print(p1);
+				PointND p2tmp =  new PointND( (dSD -dSI) * sinBeta , -(dSD -dSI) * cosBeta , 0.0); //senkrect auf detector
+				//System.out.print(p2tmp);
+				PointND p2 = new PointND( p2tmp.getCoordinates()[0] + t * cosBeta ,p2tmp.getCoordinates()[1] + t * sinBeta, 0.0);// t
+				//System.out.println(p2);
 
 				// set up line equation
 				StraightLine line = new StraightLine(p1, p2);
 				// compute intersections between bounding box and intersection
 				// line.
 				ArrayList<PointND> points = b.intersect(line);
-
-				System.out.println(points.get(0) + " " + points.get(1));
+//				if(i==0){
+//					System.out.println(points);
+//				}
 				
 				if (2 != points.size()) { 
 					if (points.size() == 0) {
@@ -87,7 +93,7 @@ public class FanBeam {
 				
 				//intersection points:
 				int samplingRate = (int) (length / samplingStep);
-				SimpleVector direction = line.getDirection().multipliedBy(samplingStep);
+				SimpleVector direction = line.getDirection().normalizedL2().multipliedBy(samplingStep);
 				
 				PointND currentPoint = new PointND(start);
 				currentPoint.getAbstractVector().subtract(direction); //so that start is the first point ;)
@@ -100,7 +106,7 @@ public class FanBeam {
 					//double[] pixels = input.physicalToIndex(currentPoint.get(0), currentPoint.get(1)); 
 					double dim1 = (currentPoint.get(0)/ input.getSpacing()[0]);
 					double dim2 = (currentPoint.get(1)/ input.getSpacing()[1]);
-					float tmp = InterpolationOperators.interpolateLinear(input, dim1 - input.getOrigin()[0], dim2 - input.getOrigin()[1]); 
+					float tmp = InterpolationOperators.interpolateLinear(input, dim1 -input.getOrigin()[0], dim2 - input.getOrigin()[1]); 
 					value += tmp;
 					
 				}
@@ -118,7 +124,7 @@ public class FanBeam {
 		Phantom phan = new Phantom(200, 300, 1.0, 1.0);
 		phan.show();
 		
-		Grid2D fanogram = fanogram(phan, 1.0, 400, 1.0, 180, 200, 400);
+		Grid2D fanogram = fanogram(phan, 1.0, 600, 1.0, 180, 400, 800); // (Grid2D input, double detSpacing, int nrDetElements, double rotAngle, int nrProj, double dSI, double dSD ) {
 		fanogram.show("mein fano");
 	}
 
