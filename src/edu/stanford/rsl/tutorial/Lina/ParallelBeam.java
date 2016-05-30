@@ -125,12 +125,17 @@ public class ParallelBeam {
 		int dimension1 = sino.getWidth();
 		int dimension2 = sino.getHeight();
 		
+		if(dimension1 < 180){
+			System.err.println("The number of Projections has to be >= 180.");
+			return null;
+		}
+		
 		Grid2D image = new Grid2D(dimension2, dimension2);
 		image.setSpacing(sino.getSpacing()[1], sino.getSpacing()[1]);
 		image.setOrigin(-(dimension2*image.getSpacing()[0])/2, -(dimension2*image.getSpacing()[1])/2);
 		
 		for(int t=0; t< dimension1; t++){ 
-			double theta = t* (180/dimension1) *2*Math.PI / 360;
+			double theta = t* (dimension1/180) *2*Math.PI / 360;
 			double cosTheta = Math.cos(theta);
 			double sinTheta = Math.sin(theta);
 			
@@ -289,7 +294,7 @@ public class ParallelBeam {
 		sinogram.show("mein sino");
 		
 		Grid2D back = backProjection(sinogram);
-		back.show("backprojection");*/
+		back.show("backprojection");
 		
 		Grid2D filt = rampFilter(sinogram);
 		filt.show("ramp filtered sino");

@@ -12,7 +12,7 @@ import ij.ImageJ;
 
 public class FanBeam {
 
-	public static Grid2D fanogram(Grid2D input, double detSpacing, int nrDetElements, double rotAngle, int nrProj, double dSI, double dSD ) {
+	public static Grid2D fanogram(Grid2D input, double detSpacing, int nrDetElements, double incrementAngle, int nrProj, double dSI, double dSD ) {
 		
 		if(nrProj <= 0){
 			System.err.println("invalid number of Projections.");
@@ -26,9 +26,9 @@ public class FanBeam {
 			return null;
 		}
 		
-		Grid2D fano = new Grid2D(nrDetElements, nrProj);
+		Grid2D fano = new Grid2D(nrProj, nrDetElements);
 		fano.setSpacing(detSpacing, detSpacing);
-		fano.setOrigin(-(nrDetElements*detSpacing)/2, -(nrProj*detSpacing)/2);
+		fano.setOrigin(-(fano.getSize()[0]*detSpacing)/2, -(fano.getSize()[1]*detSpacing)/2);
 		
 		//set sampling rate 
 		final double samplingStep = 0.5; //[mm]
@@ -45,11 +45,11 @@ public class FanBeam {
 		
 		// for all Projections
 		for (int i = 0; i < nrProj; i++) {
-			double beta = (i*rotAngle) *2*Math.PI / 360; // radians
+			double beta = (i*incrementAngle) *2*Math.PI / 360; // radians
 			double sinBeta = Math.sin(beta);
 			double cosBeta = Math.cos(beta);
 			//System.out.println();
-			//System.out.println(i*rotAngle + " " +beta);
+			//System.out.println(i*incrementAngle + " " +beta);
 				
 			//for all Rays
 			for (int j =0; j < nrDetElements; j++) {
@@ -112,20 +112,62 @@ public class FanBeam {
 				}
 //				System.out.println(value);
 				//create value in fanogram
-				fano.setAtIndex(j, i, value); //nrProjections, nrDetElements, value
+				fano.setAtIndex(i,j, value); //nrProjections, nrDetElements, value
 				
 			}
 		}
 		return fano;
 	}
 	
+	public static Grid2D rebinning(Grid2D fano, double incrementAngle, double dSI, double dSD ){
+		Grid2D sino = new Grid2D(fano.getSize()[0], fano.getSize()[1]);
+		sino.setSpacing(fano.getSpacing()[0], fano.getSpacing()[1]);
+		sino.setOrigin(fano.getOrigin()[0], fano.getOrigin()[1]);
+		
+		// tan(gamma) = t/(dSI + dSD)
+		// theta = beta + gamma
+		// s = dSI *sin(gamma)
+		
+		for(int i = 0; i<sino.getSize()[0]; i++){ //theta
+			for(int j = 0; j<sino.getSize()[1]; j++){ //s
+				double[] physIndex = sino.indexToPhysical(i, j); //theta, s
+				
+				double gamma = Math.asin(physIndex[1]/dSI); //rad!
+				double t = Math.tan(gamma)*(dSI+dSD); 
+				gamma = gamma *360 / (2*Math.PI); // grad
+				double theta = physIndex[0]* 180/sino.getSize()[0];
+				double beta = theta - gamma;
+				beta = beta/incrementAngle;
+				
+				double[] fanoIndex = fano.physicalToIndex(beta, t);
+				float val = InterpolationOperators.interpolateLinear(fano, fanoIndex[0], fanoIndex[1]);
+				sino.setAtIndex(i, j, val);
+			}
+		}
+		return sino;
+	}
+	
+	
+	
 	public static void main(String[] args) {
 		new ImageJ();
 		Phantom phan = new Phantom(200, 300, 1.0, 1.0);
 		phan.show();
 		
-		Grid2D fanogram = fanogram(phan, 1.0, 600, 1.0, 180, 400, 800); // (Grid2D input, double detSpacing, int nrDetElements, double rotAngle, int nrProj, double dSI, double dSD ) {
-		fanogram.show("mein fano");
+		Grid2D fanogram = fanogram(phan, 1.0, 600, 1.0, 200, 500, 1000); // (Grid2D input, double detSpacing, int nrDetElements, double incrementAngle, int nrProj, double dSI, double dSD ) {
+		fanogram.show("mein fano"); 
+		
+		Grid2D sino = rebinning(fanogram, 1.0, 500, 1000);//gute eingabe oben: 200 grad
+		sino.show("sino");
+		
+		ParallelBeam p = new ParallelBeam();
+		
+		Grid2D filter = p.ramLakFilter(sino);
+		filter.show("ramLak");
+		
+		Grid2D fbp = p.filteredBackProjection("ramLak", sino);
+		fbp.show("fbp");
+		
 	}
 
 }
