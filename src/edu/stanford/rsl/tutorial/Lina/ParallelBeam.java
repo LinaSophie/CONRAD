@@ -289,7 +289,7 @@ public class ParallelBeam {
 		sinogram.show("mein sino");
 		
 		Grid2D back = backProjection(sinogram);
-		back.show("backprojection");
+		back.show("backprojection");*/
 		
 		Grid2D filt = rampFilter(sinogram);
 		filt.show("ramp filtered sino");
