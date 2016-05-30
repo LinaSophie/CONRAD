@@ -24,9 +24,9 @@ public class ParallelBeam {
 			System.err.println("invalid number of Projections.");
 			return new Grid2D(1, 1);
 		}
-		Grid2D sino = new Grid2D(nrDetPixels, nrProj);
+		Grid2D sino = new Grid2D(nrProj, nrDetPixels);
 		sino.setSpacing(detSpacing, detSpacing);
-		sino.setOrigin(-(nrDetPixels*detSpacing)/2, -(nrProj*detSpacing)/2);
+		sino.setOrigin(-(nrProj*detSpacing)/2, -(nrDetPixels*detSpacing)/2);
 		
 		//set sampling rate 
 		final double samplingStep = 0.5; //[mm]
@@ -111,7 +111,7 @@ public class ParallelBeam {
 				}
 //				System.out.println(value);
 				//create value in sinogram
-				sino.setAtIndex(j, i, value); //nrProjections, nrDetPixels, value
+				sino.setAtIndex(i, j, value); //nrProjections, nrDetPixels, value
 				
 			}
 			//theta = +angle;
@@ -122,12 +122,12 @@ public class ParallelBeam {
 	
 	public static Grid2D backProjection(Grid2D sino ){
 		
-		int dimension1 = sino.getHeight();
-		int dimension2 = sino.getWidth();
+		int dimension1 = sino.getWidth();
+		int dimension2 = sino.getHeight();
 		
 		Grid2D image = new Grid2D(dimension2, dimension2);
-		image.setSpacing(sino.getSpacing()[0], sino.getSpacing()[0]);
-		image.setOrigin(-(dimension2*sino.getSpacing()[0])/2, -(dimension2*sino.getSpacing()[0])/2);
+		image.setSpacing(sino.getSpacing()[1], sino.getSpacing()[1]);
+		image.setOrigin(-(dimension2*image.getSpacing()[0])/2, -(dimension2*image.getSpacing()[1])/2);
 		
 		for(int t=0; t< dimension1; t++){ 
 			double theta = t* (180/dimension1) *2*Math.PI / 360;
@@ -135,16 +135,16 @@ public class ParallelBeam {
 			double sinTheta = Math.sin(theta);
 			
 			// go over pixels in image
-			for(int i=0; i<image.getHeight(); i++){
-				for( int j=0 ; j< image.getWidth(); j++){
+			for(int i=0; i<image.getWidth(); i++){
+				for( int j=0 ; j< image.getHeight(); j++){
 					
 					//pixels to world coordinates
 					double[] physIndex = image.indexToPhysical(i, j);
 					//calculate s and interpolate
 					double s = physIndex[0]*cosTheta + physIndex[1]*sinTheta;
-					double[] sinoIndex = sino.physicalToIndex(s, t);
+					double[] sinoIndex = sino.physicalToIndex(t, s);
 					
-					float value = InterpolationOperators.interpolateLinear(sino, sinoIndex[0], t);
+					float value = InterpolationOperators.interpolateLinear(sino, t, sinoIndex[1]);
 					float pixelValue = image.getAtIndex(i, j) + value;
 					image.setAtIndex(i, j, pixelValue);
 				}
@@ -161,17 +161,21 @@ public class ParallelBeam {
 		filteredSino.setOrigin(sino.getOrigin()[0], sino.getOrigin()[1]);
 		
 		//ramp filter
-		Grid1D ramp = new Grid1D(FFTUtil.getNextPowerOfTwo(sino.getSize()[0]));
-		double deltaF = 1/(sino.getSpacing()[0]*ramp.getSize()[0]);
+		Grid1D ramp = new Grid1D(FFTUtil.getNextPowerOfTwo(sino.getSize()[1]));
+		double deltaF = 1/(sino.getSpacing()[1]*ramp.getSize()[0]);
 		for(int i=0; i < ramp.getSize()[0]/2; i++){
 			ramp.setAtIndex(i, (float)(Math.abs(2.0f* Math.PI * i * deltaF )));
 			ramp.setAtIndex(ramp.getSize()[0]-1-i, (float)(Math.abs(2.0f* Math.PI * i * deltaF )));
 		}
 		Grid1DComplex rampComplex = new Grid1DComplex(ramp);
 		
-		//convolution for each row
-		for(int i=0; i < sino.getSize()[1]; i++){
-			Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
+		//convolution for each column
+		for(int i=0; i < sino.getSize()[0]; i++){
+			//Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
+			Grid1DComplex complexLine = new Grid1DComplex(sino.getSize()[1]);
+			for(int j = 0; j< sino.getSize()[1]; j++){
+				complexLine.setAtIndex(j, sino.getAtIndex(i, j));
+			}
 			complexLine.transformForward();
 //			complexLine.show();
 			
@@ -181,8 +185,8 @@ public class ParallelBeam {
 			}
 			
 			complexLine.transformInverse();
-			for(int j = 0; j< complexLine.getSize()[0]; j++){
-				filteredSino.setAtIndex(j,i, complexLine.getRealAtIndex(j));
+			for(int j = 0; j< sino.getSize()[1]; j++){
+				filteredSino.setAtIndex(i,j, complexLine.getRealAtIndex(j));
 			}
 		}
 		return filteredSino;
@@ -195,7 +199,7 @@ public class ParallelBeam {
 		filteredSino.setOrigin(sino.getOrigin()[0], sino.getOrigin()[1]);
 		
 		//ramLak filter
-		Grid1D ramLak = new Grid1D(sino.getSize()[0]); //FFTUtil.getNextPowerOfTwo(sino.getSize()[0])
+		Grid1D ramLak = new Grid1D(sino.getSize()[1]); //FFTUtil.getNextPowerOfTwo(sino.getSize()[0])
 		Grid1DComplex ramLakComplex = new Grid1DComplex(ramLak);
 
 		for (int i = 0; i < ramLakComplex.getSize()[0]/2; i++) {
@@ -218,8 +222,12 @@ public class ParallelBeam {
 		ramLakComplex.show("ramLakComp FFT");
 
 		// convolution for each row
-		for (int i = 0; i < sino.getSize()[1]; i++) {
-			Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
+		for (int i = 0; i < sino.getSize()[0]; i++) {
+			//Grid1DComplex complexLine = new Grid1DComplex(sino.getSubGrid(i));
+			Grid1DComplex complexLine = new Grid1DComplex(sino.getSize()[1]);
+			for(int j = 0; j< sino.getSize()[1]; j++){
+				complexLine.setAtIndex(j, sino.getAtIndex(i, j));
+			}
 			complexLine.transformForward();
 
 			// multiply with ramp filter
@@ -229,8 +237,8 @@ public class ParallelBeam {
 			}
 
 			complexLine.transformInverse();
-			for (int j = 0; j < complexLine.getSize()[0]; j++) {
-				filteredSino.setAtIndex(j, i, complexLine.getRealAtIndex(j));
+			for (int j = 0; j < sino.getSize()[1]; j++) {
+				filteredSino.setAtIndex(i,j, complexLine.getRealAtIndex(j));
 			}
 		}
 		return filteredSino;
@@ -278,19 +286,21 @@ public class ParallelBeam {
 //		grid.show("logan");
 		
 		Grid2D sinogram = sinogram(phan, 180, 1.0, 400);
-		//sinogram = backProjection(sinogram);
 		sinogram.show("mein sino");
-		
-/*		Grid2D filt = rampFilter(sinogram);
-		filt.show("filtered sino");
 		
 		Grid2D back = backProjection(sinogram);
 		back.show("backprojection");
 		
+		Grid2D filt = rampFilter(sinogram);
+		filt.show("ramp filtered sino");
+		
+		Grid2D filtered = ramLakFilter(sinogram);
+		filtered.show("ramLak filtered sino");
+		
 		Grid2D fbp = filteredBackProjection("ramp", sinogram);
-		fbp.show("fbp ramp");*/
+		fbp.show("fbp ramp");
 		
 		Grid2D fbpLak = filteredBackProjection("ramLak", sinogram);
-		fbpLak.show("fbp ramLahk");
+		fbpLak.show("fbp ramLak");
 	}
 }
