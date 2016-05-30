@@ -222,9 +222,9 @@ public class ParallelBeam {
 			}
 		}
 		
-		ramLakComplex.show("ramLakComp");
+		//ramLakComplex.show("ramLakComp");
 		ramLakComplex.transformForward();
-		ramLakComplex.show("ramLakComp FFT");
+		//ramLakComplex.show("ramLakComp FFT");
 
 		// convolution for each row
 		for (int i = 0; i < sino.getSize()[0]; i++) {
