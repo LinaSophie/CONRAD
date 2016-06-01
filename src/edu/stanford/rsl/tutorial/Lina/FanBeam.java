@@ -131,6 +131,11 @@ public class FanBeam {
 		
 		for(int i = 0; i<sino.getSize()[0]; i++){ //theta
 			for(int j = 0; j<sino.getSize()[1]; j++){ //s
+
+				if(j >= 300){
+					System.out.println();
+				}
+				
 				double[] physIndex = sino.indexToPhysical(i, j); //theta, s
 
 				double gamma = Math.asin(physIndex[1]/dSD); //rad!
@@ -140,23 +145,31 @@ public class FanBeam {
 				double beta = theta - gamma;
 				beta = beta/incrementAngle; //?
 				
-/*				if(beta < 0){
+// works for the case that we rotate 360°
+				if(fano.getSize()[0] == 360){
+					
+				if(beta < 0){
 					beta = beta + 360;
 					if(beta > 359){
 						beta = 0;
 					}
-				}*/
+				}
+				}else{
 				if(beta < 0){
-					beta = beta + 180 + gamma;
-					if(beta > 359){
+					beta = -beta + 90 + 180 - 2* gamma;
+					
+					if(beta > fano.getSize()[0] - 1){
 						beta = 0;
 					}
 				}
-				
+				}
+
 				double[] fanoIndex = fano.physicalToIndex(beta, t);
 				float val = InterpolationOperators.interpolateLinear(fano, beta, fanoIndex[1]);
-				
+				//System.out.println(" y: " + fanoIndex[1] + " val: "+ val);
+				//System.out.println();
 				sino.setAtIndex(i, j, val);
+				
 			}
 		}
 		return sino;
@@ -183,22 +196,28 @@ public class FanBeam {
 		Phantom phan = new Phantom(200, 300, 1.0, 1.0);
 		phan.show();
 		
-		Grid2D fanogram = fanogram(phan, 1.0, 600, 1.0, 360, 500, 1000); // (Grid2D input, double detSpacing, int nrDetElements, double incrementAngle, int nrProj, double dSI, double dSD ) {
-		fanogram.show("mein fano"); 
+	/*	Grid2D fanogram1 = fanogram(phan, 1.0, 600, 1.0, 360, 500, 1000); // (Grid2D input, double detSpacing, int nrDetElements, double incrementAngle, int nrProj, double dSI, double dSD ) {
+		fanogram1.show("mein fano 360"); 
+
+		Grid2D sino1 = rebinning(fanogram1, 1.0, 500, 1000);//gute eingabe oben: 200 grad
+		sino1.show("sino 360");*/
+		
+		Grid2D fanogram = fanogram(phan, 1.0, 600, 1.0, 200, 500, 1000); // (Grid2D input, double detSpacing, int nrDetElements, double incrementAngle, int nrProj, double dSI, double dSD ) {
+		fanogram.show("mein fano 200"); 
 		//ParallelBeam p2 = new ParallelBeam();
 		//Grid2D fbp2 = p2.filteredBackProjection("ramLak", fanogram);
 		//fbp2.show("fbp ohne rebinning");
 		
 		Grid2D sino = rebinning(fanogram, 1.0, 500, 1000);//gute eingabe oben: 200 grad
-		sino.show("sino");
+		sino.show("sino 200");
 		
-		ParallelBeam p = new ParallelBeam();
+	//	ParallelBeam p = new ParallelBeam();
 		
 		//Grid2D filter = p.ramLakFilter(sino);
 		//filter.show("ramLak");
 		
-		Grid2D fbp = p.filteredBackProjection("ramLak", sino);
-		fbp.show("fbp"); 
+	//	Grid2D fbp = p.filteredBackProjection("ramLak", sino);
+	//	fbp.show("fbp"); 
 		
 		/*
 		Grid2D ss = shortScan(phan, 1.0, 600, 1.0, 500, 1000); // (Grid2D input, double detSpacing, int nrDetElements, double incrementAngle, int nrProj, double dSI, double dSD ) {
