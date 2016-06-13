@@ -157,10 +157,18 @@ public class FanBeam {
 				}else{
 				if(beta < 0){
 					beta = -beta + 90 + 180 - 2* gamma;
-					
 					if(beta > fano.getSize()[0] - 1){
 						beta = 0;
 					}
+/*					beta += 2*Math.PI;
+					if(beta > 359/360*2*Math.PI){
+						beta = 359/360*2*Math.PI;
+					}
+				}
+				if(beta >= 2*Math.PI){
+					beta -= 2*Math.PI;
+				}
+*/
 				}
 				}
 
