@@ -1,10 +1,8 @@
  
-void add(int x, int y, global float *phan, global float *phan2){
+__kernel void add(int size, __global float *phan, __global float *phan2){
     int iGID = get_global_id(0);
-    int jGID = get_global_id(1);
     
-    if(iGID >= x) return;
-    if(jGID >= y) return;
+    if(iGID >= size) return;
     
-    phan[iGID,jGID]+= phan2[iGID,jGID];
+    phan[iGID] = phan[iGID] + phan2[iGID];
 }

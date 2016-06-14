@@ -1,4 +1,6 @@
 package edu.stanford.rsl.tutorial.Lina;
+import ij.ImageJ;
+
 import java.io.IOException;
 import java.nio.FloatBuffer;
 
@@ -6,34 +8,99 @@ import com.jogamp.opencl.CLBuffer;
 import com.jogamp.opencl.CLCommandQueue;
 import com.jogamp.opencl.CLContext;
 import com.jogamp.opencl.CLDevice;
+import com.jogamp.opencl.CLImage2d;
+import com.jogamp.opencl.CLImageFormat;
+import com.jogamp.opencl.CLImageFormat.ChannelOrder;
+import com.jogamp.opencl.CLImageFormat.ChannelType;
 import com.jogamp.opencl.CLKernel;
 import com.jogamp.opencl.CLMemory.Mem;
 import com.jogamp.opencl.CLProgram;
 
 import edu.stanford.rsl.conrad.data.numeric.Grid2D;
+import edu.stanford.rsl.conrad.data.numeric.InterpolationOperators;
 import edu.stanford.rsl.conrad.data.numeric.NumericPointwiseOperators;
 import edu.stanford.rsl.conrad.data.numeric.opencl.OpenCLGrid2D;
 import edu.stanford.rsl.conrad.opencl.OpenCLUtil;
-import fiji.util.FloatArray;
+
 
 public class test_OpenCL {
+	
+public static Grid2D backProjectionCL(Grid2D sino, int workSize ){
+		
+		if(sino.getSize()[0]< 180){
+			System.err.println("The number of Projections has to be >= 180.");
+			return null;
+		}
+		
+        CLContext context = OpenCLUtil.getStaticContext();
+        CLDevice clDevice = context.getMaxFlopsDevice();
+        CLImageFormat format = new CLImageFormat(ChannelOrder.INTENSITY, ChannelType.FLOAT);
+       
+        OpenCLGrid2D sinoCL = new OpenCLGrid2D(sino);
+        CLImage2d<FloatBuffer> sinoTex = null;
+        sinoTex = context.createImage2d(sinoCL.getDelegate().getCLBuffer().getBuffer(), sino.getSize()[0], sino.getSize()[1], format, Mem.READ_ONLY);
+		
+		Grid2D image = new Grid2D(sino.getSize()[1], sino.getSize()[1]);
+		image.setSpacing(sino.getSpacing()[1], sino.getSpacing()[1]);
+		image.setOrigin(-(sino.getSize()[1]*image.getSpacing()[0])/2, -(sino.getSize()[1]*image.getSpacing()[1])/2);
+		
+		float[] bufferImage = sino.getBuffer().clone();
+        CLBuffer<FloatBuffer> bufferCLimage = context.createFloatBuffer(bufferImage.length,Mem.READ_WRITE);
+        bufferCLimage.getBuffer().put(bufferImage);
+        bufferCLimage.getBuffer().rewind();
+        
+        CLProgram program = null;
+        try{
+        	program = context.createProgram(test_OpenCL.class.getResourceAsStream("backProjectionCL.cl")).build();
+        }catch(IOException e){
+        	e.printStackTrace();
+        }
+        CLKernel kernelFunktion = program.createCLKernel("backproj");
+        kernelFunktion.rewind();
+        
+        int localWorkSize = workSize;
+        int globalWorkSize = OpenCLUtil.roundUp(localWorkSize, bufferImage.length);
+        
+        CLCommandQueue queue = clDevice.createCommandQueue();
+        
+        queue.putWriteBuffer(bufferCL, true).putWriteBuffer(bufferCL2, true).finish();
+        
+        kernelFunktion.putArg(width*height).putArg(bufferCL).putArg(bufferCL2);
+        
+        queue.put1DRangeKernel(kernelFunktion, 0, globalWorkSize, localWorkSize).finish();
+        queue.putReadBuffer(bufferCL, true).finish();
+		
+
+        for (int j = 0; j < image.getSize()[1]; j++) {
+        	for (int i = 0; i < image.getSize()[0]; i++) {
+        		image.setAtIndex(i, j, bufferCLimage.getBuffer().get());
+        	}
+        }
+        
+        queue.release();
+        kernelFunktion.release();
+        program.release();
+        bufferCLimage.release();
+        sinoTex.release();
+        sinoCL.release();
+        context.release();
+        
+        return image;
+	}
+	
 
     public static Grid2D addGPU(int width, int height){
     	
         Phantom phantom = new Phantom(width,height,1.0,1.0);
         CLContext context = OpenCLUtil.getStaticContext();
         CLDevice clDevice = context.getMaxFlopsDevice();
-        OpenCLGrid2D phantomCL = new OpenCLGrid2D(phantom, context, clDevice);
-        float[] buffer = phantomCL.getBuffer();
+       
+        float[] buffer = phantom.getBuffer().clone();
         CLBuffer<FloatBuffer> bufferCL = context.createFloatBuffer(buffer.length,Mem.READ_WRITE);
         bufferCL.getBuffer().put(buffer);
         bufferCL.getBuffer().rewind();
         
-        Phantom phantom2 = new Phantom(width,height,1.0,1.0);
-        CLContext context2 = OpenCLUtil.getStaticContext();
-        CLDevice clDevice2 = context.getMaxFlopsDevice();
-        OpenCLGrid2D phantomCL2 = new OpenCLGrid2D(phantom2, context, clDevice);
-        float[] buffer2 = phantomCL2.getBuffer();
+        float[] buffer2 = phantom.getBuffer().clone();
         CLBuffer<FloatBuffer> bufferCL2 = context.createFloatBuffer(buffer2.length,Mem.READ_WRITE);
         bufferCL2.getBuffer().put(buffer2);
         bufferCL2.getBuffer().rewind();
@@ -45,30 +112,42 @@ public class test_OpenCL {
         	e.printStackTrace();
         }
         CLKernel kernelFunktion = program.createCLKernel("add");
-        kernelFunktion.putArg(width).putArg(height)
-        .putArg(bufferCL).putArg(bufferCL2);
+        kernelFunktion.rewind();
         
-        int localWorkSize = 128;
-        int globalWorkSize = OpenCLUtil.roundUp(128, buffer.length);
+        int localWorkSize = 32;
+        int globalWorkSize = OpenCLUtil.roundUp(localWorkSize, buffer.length);
         
         CLCommandQueue queue = clDevice.createCommandQueue();
         
-        queue.putWriteBuffer(bufferCL, true)
-        .put1DRangeKernel(kernelFunktion, 0, globalWorkSize, localWorkSize)
-        .finish();
+        queue.putWriteBuffer(bufferCL, true).putWriteBuffer(bufferCL2, true).finish();
         
-        bufferCL.getBuffer().get(buffer);
+        kernelFunktion.putArg(width*height)
+        .putArg(bufferCL).putArg(bufferCL2);
         
-        for (int i = 0; i < phantom.getBuffer().length; ++i) {
-			phantom.getBuffer()[i] = bufferCL.getBuffer().get();
+        queue.put1DRangeKernel(kernelFunktion, 0, globalWorkSize, localWorkSize).finish();
+        
+        
+        queue.putReadBuffer(bufferCL, true).finish();
+                     
+        for (int j = 0; j < phantom.getSize()[1]; j++) {
+        	for (int i = 0; i < phantom.getSize()[0]; i++) {
+        		phantom.setAtIndex(i, j, bufferCL.getBuffer().get());
+        	}
         }
+        
+        queue.release();
+        kernelFunktion.release();
+        program.release();
+        bufferCL2.release();
+        bufferCL.release();
+        context.release();
         
         return phantom;
     }
  
     
     public static void main(String[] args) {
-        // TODO Auto-generated method stub
+        // *** Aufgabe 1 ***
         Phantom phantom = new Phantom(256,256,1.0,1.0);
         
         CLContext context = OpenCLUtil.getStaticContext();
@@ -93,8 +172,23 @@ public class test_OpenCL {
         System.out.println("CPU time:" + (endCPU -startCPU));
         System.out.println("GPU time:" + (endGPU -startGPU));
           
-        Grid2D phan = addGPU(128,128);
+        
+        // *** Aufgabe 2 ***
+        Grid2D phan = addGPU(200,300);
+        
+        new ImageJ();
+        phantom.show();
         phan.show();
+        
+        // *** Aufgabe 3 ***
+        Phantom p = new Phantom(256,256,1.0,1.0);
+        
+        ParallelBeam pb = new ParallelBeam();
+        Grid2D sinogram = pb.sinogram(p, 180, 1.0, 400);
+		sinogram.show("mein sino");
+		
+		Grid2D back = backProjectionCL(sinogram, 32);
+		back.show("backprojection");
    
     }
 }
