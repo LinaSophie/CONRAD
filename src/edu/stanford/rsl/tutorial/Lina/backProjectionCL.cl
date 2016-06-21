@@ -1,35 +1,40 @@
 
-__constant sampler_t sampler = CLK_NORMALIZED_COORDS_fALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
+__constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
 
-__kernel void backproj(int sizeImage, __read_only image2d_t sino, __global float *image{
+__kernel void backproj(int size0, int size1,
+		       float origin0, float origin1, 
+		       float spacing0, float spacing1,  
+		       int size0sino, int size1sino ,
+		       float origin0sino, float origin1sino,
+		       __read_only image2d_t sino, __global float *image){
 
-    int imageGID = get_global_id(0);
-    if(imageGID >= sizeImage) return;
+    int xGID = get_global_id(0);
+    if(xGID >= size0) return;
+    
+    int yGID = get_global_id(1);
+    if(yGID >= size1) return;
+    
     
     //phan[iGID] = phan[iGID] + phan2[iGID];
-		       
-/*		for(int t=0; t< dimension1; t++){ 
-			double theta = t* (dimension1/180) *2*Math.PI / 360;
-			double cosTheta = Math.cos(theta);
-			double sinTheta = Math.sin(theta);
-			
-			// go over pixels in image
-			for(int i=0; i<image.getWidth(); i++){
-				for( int j=0 ; j< image.getHeight(); j++){
-					
-					//pixels to world coordinates
-					double[] physIndex = image.indexToPhysical(i, j);
-					//calculate s and interpolate
-					double s = physIndex[0]*cosTheta + physIndex[1]*sinTheta;
-					double[] sinoIndex = sino.physicalToIndex(t, s);
-					
-					float value = InterpolationOperators.interpolateLinear(sino, t, sinoIndex[1]);
-					float pixelValue = image.getAtIndex(i, j) + value;
-					image.setAtIndex(i, j, pixelValue);
-				}
-			}
-			
-		}
-*/		       
+    for(int t=0; t<size1sino; t++){
+	float theta = t* (size1sino/180.0) *2*M_PI_F / 360.0;
+	float cosTheta = cos(theta);
+	float sinTheta = sin(theta);
+	
+	//pixels to world coordinates
+	float physIndex0 = xGID * spacing0 + origin0;
+	float physIndex1 = yGID * spacing1 + origin1;
 
+	//calculate s and interpolate
+	float s = physIndex0*cosTheta + physIndex1*sinTheta;
+	
+	//pysical to index
+	//float sinoIndex0 = (t - origin0) / spacing0;
+	float sinoIndex1 = (s - origin1sino) / spacing1;
+	
+	
+	float value = read_imagef(sino, sampler, (float2)(t+0.5f,sinoIndex1+0.5f)).x;
+
+	image[xGID*size1 + yGID] = image[xGID*size1+ yGID] + value;
+    }    
 }

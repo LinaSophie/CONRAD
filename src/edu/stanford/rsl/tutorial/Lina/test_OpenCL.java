@@ -44,7 +44,7 @@ public static Grid2D backProjectionCL(Grid2D sino, int workSize ){
 		image.setSpacing(sino.getSpacing()[1], sino.getSpacing()[1]);
 		image.setOrigin(-(sino.getSize()[1]*image.getSpacing()[0])/2, -(sino.getSize()[1]*image.getSpacing()[1])/2);
 		
-		float[] bufferImage = sino.getBuffer().clone();
+		float[] bufferImage = image.getBuffer().clone();
         CLBuffer<FloatBuffer> bufferCLimage = context.createFloatBuffer(bufferImage.length,Mem.READ_WRITE);
         bufferCLimage.getBuffer().put(bufferImage);
         bufferCLimage.getBuffer().rewind();
@@ -63,14 +63,19 @@ public static Grid2D backProjectionCL(Grid2D sino, int workSize ){
         
         CLCommandQueue queue = clDevice.createCommandQueue();
         
-        queue.putWriteBuffer(bufferCL, true).putWriteBuffer(bufferCL2, true).finish();
+        queue.putWriteImage(sinoTex, true).putWriteBuffer(bufferCLimage, true).finish();
         
-        kernelFunktion.putArg(width*height).putArg(bufferCL).putArg(bufferCL2);
+        kernelFunktion.putArg(image.getSize()[0]).putArg(image.getSize()[1])
+        .putArg((float)image.getOrigin()[0]).putArg((float)image.getOrigin()[1])
+        .putArg((float)image.getSpacing()[0]).putArg((float)image.getSpacing()[1])
+        .putArg(sino.getSize()[0]).putArg(sino.getSize()[1])
+        .putArg((float)sino.getOrigin()[0]).putArg((float)sino.getOrigin()[1])
+        .putArg(sinoTex).putArg(bufferCLimage);
         
-        queue.put1DRangeKernel(kernelFunktion, 0, globalWorkSize, localWorkSize).finish();
-        queue.putReadBuffer(bufferCL, true).finish();
+        queue.put2DRangeKernel(kernelFunktion,0, 0, globalWorkSize, globalWorkSize, localWorkSize, localWorkSize).finish();
+        queue.putReadBuffer(bufferCLimage, true).finish();
 		
-
+        bufferCLimage.getBuffer().rewind();
         for (int j = 0; j < image.getSize()[1]; j++) {
         	for (int i = 0; i < image.getSize()[0]; i++) {
         		image.setAtIndex(i, j, bufferCLimage.getBuffer().get());
@@ -147,7 +152,7 @@ public static Grid2D backProjectionCL(Grid2D sino, int workSize ){
  
     
     public static void main(String[] args) {
-        // *** Aufgabe 1 ***
+  /*      // *** Aufgabe 1 ***
         Phantom phantom = new Phantom(256,256,1.0,1.0);
         
         CLContext context = OpenCLUtil.getStaticContext();
@@ -179,8 +184,10 @@ public static Grid2D backProjectionCL(Grid2D sino, int workSize ){
         new ImageJ();
         phantom.show();
         phan.show();
+        */
         
         // *** Aufgabe 3 ***
+    	new ImageJ();
         Phantom p = new Phantom(256,256,1.0,1.0);
         
         ParallelBeam pb = new ParallelBeam();
